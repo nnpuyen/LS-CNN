@@ -4,7 +4,7 @@ import argparse
 import datetime
 import torch
 import torch.nn as nn
-import torchtext.legacy.data as data
+import torchtext.data as data
 from torchtext.vocab import Vectors
 import LS_CNN
 import train

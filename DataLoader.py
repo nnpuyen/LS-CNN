@@ -1,6 +1,6 @@
 import re
 import random
-from torchtext.legacy import data
+from torchtext import data
 
 
 class MyData(data.Dataset):
