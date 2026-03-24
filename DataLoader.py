@@ -1,84 +1,76 @@
 import re
 import random
-from torchtext import data
+from torch.utils.data import Dataset
 
 
-class MyData(data.Dataset):
-	@staticmethod
-	def sort_ket(ex):
-		return len(ex.text)
-
-	def __init__(self, text_field, label_field, cover_path=None, 
-				 stego_path=None, examples=None, **kwargs):
-		'''Create an Myself_dataset instance given a path and fields
-
-		Arguments:
-			text_field: The field that will be used for text data.
-			label_field: The field that will be used for label data.
-			path: The path of the data file.
-			examples: The examples contain all the data.
-			Remaining keyword arguments: Passed to the constructor of 
-			data.Dataset.
-		'''
-
-		def clean_str(string):
-			"""
-			Tokenization/string cleaning for all datasets except for SST.
-			Original taken from https://github.com/yoonkim/CNN_sentence/
-			blob/master/process_data.py
-			"""
-			string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
-			string = re.sub(r"\'s", " \'s", string)
-			string = re.sub(r"\'ve", " \'ve", string)
-			string = re.sub(r"n\'t", " n\'t", string)
-			string = re.sub(r"\'re", " \'re", string)
-			string = re.sub(r"\'d", " \'d", string)
-			string = re.sub(r"\'ll", " \'ll", string)
-			string = re.sub(r",", " , ", string)
-			string = re.sub(r"!", " ! ", string)
-			string = re.sub(r"\(", " \( ", string)
-			string = re.sub(r"\)", " \) ", string)
-			string = re.sub(r"\?", " \? ", string)
-			string = re.sub(r"\s{2,}", " ", string)
-			return string.strip()
+def clean_str(string):
+    string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
+    string = re.sub(r"\'s", " \'s", string)
+    string = re.sub(r"\'ve", " \'ve", string)
+    string = re.sub(r"n\'t", " n\'t", string)
+    string = re.sub(r"\'re", " \'re", string)
+    string = re.sub(r"\'d", " \'d", string)
+    string = re.sub(r"\'ll", " \'ll", string)
+    string = re.sub(r",", " , ", string)
+    string = re.sub(r"!", " ! ", string)
+    string = re.sub(r"\(", " ( ", string)
+    string = re.sub(r"\)", " ) ", string)
+    string = re.sub(r"\?", " ? ", string)
+    string = re.sub(r"\s{2,}", " ", string)
+    return string.strip()
 
 
-		self.text_field = text_field
-		self.label_field = label_field
+class MyData(Dataset):
+    def __init__(self, cover_path=None, stego_path=None, examples=None):
+        self.examples = []
 
-		self.text_field.preprocessing = data.Pipeline(clean_str)
-		fields = [('text', self.text_field), ('label', self.label_field)]
-		if examples is None:	
-			examples = []
-			with open(cover_path, 'r', errors='ignore') as f:
-				examples += [data.Example.fromlist([line, 'negative'], \
-						 	 	 fields) for line in f]
+        if examples is not None:
+            self.examples = examples
+        else:
+            # load cover
+            with open(cover_path, 'r', errors='ignore') as f:
+                for line in f:
+                    text = clean_str(line)
+                    self.examples.append((text, 0))  # negative = 0
 
-			with open(stego_path, 'r', errors='ignore') as f:
-				examples += [data.Example.fromlist([line, 'positive'], \
-							 	 fields) for line in f]
+            # load stego
+            with open(stego_path, 'r', errors='ignore') as f:
+                for line in f:
+                    text = clean_str(line)
+                    self.examples.append((text, 1))  # positive = 1
 
-		super(MyData, self).__init__(examples, fields, **kwargs)
+    def __len__(self):
+        return len(self.examples)
 
-	@classmethod
-	def split(cls, text_field, label_field, args, state, shuffle=True, **kwargs):
-		if state is 'train':
-			print('loading the training data...')
-			cover_path = args.train_cover_dir
-			stego_path = args.train_stego_dir
-			examples = cls(text_field, label_field, cover_path=cover_path,
-						stego_path=stego_path).examples
-			if shuffle: random.shuffle(examples)
-			val_idx = -2000
-			return (cls(text_field, label_field, examples=examples[:val_idx]),
-					cls(text_field, label_field, examples=examples[val_idx:]))
+    def __getitem__(self, idx):
+        return self.examples[idx]
 
-		if state is 'test':
-			print('loading the testing data...')
-			cover_path = args.test_cover_dir
-			stego_path = args.test_stego_dir
-			examples = cls(text_field, label_field, cover_path=cover_path,
-						stego_path=stego_path).examples
-			return cls(text_field, label_field, examples=examples)
+    @staticmethod
+    def sort_key(example):
+        return len(example[0])
 
+    @classmethod
+    def split(cls, args, state, shuffle=True):
+        if state == 'train':
+            print('loading the training data...')
+            dataset = cls(
+                cover_path=args.train_cover_dir,
+                stego_path=args.train_stego_dir
+            )
+            examples = dataset.examples
 
+            if shuffle:
+                random.shuffle(examples)
+
+            val_idx = -2000
+            train_data = cls(examples=examples[:val_idx])
+            val_data = cls(examples=examples[val_idx:])
+
+            return train_data, val_data
+
+        elif state == 'test':
+            print('loading the testing data...')
+            return cls(
+                cover_path=args.test_cover_dir,
+                stego_path=args.test_stego_dir
+            )

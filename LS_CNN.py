@@ -9,7 +9,7 @@ from torch.autograd import Variable
 
 
 class LS_CNN(nn.Module):
-	def __init__(self, args, text_field=None):
+	def __init__(self, args):
 		super(LS_CNN, self).__init__()
 		self.args = args
 
@@ -20,7 +20,7 @@ class LS_CNN(nn.Module):
 		Co = args.kernel_num
 		Ks = args.kernel_sizes
 
-		self.embed_A = nn.Embedding(V, D)
+		self.embedding = nn.Embedding(V, D)
 		#self.embed_B = nn.Embedding(V, D)
 		#self.embed_B.weight.data.copy_(text_field.vocab.vectors)
 		#self.embed_B.weight.requires_grad = False
@@ -40,7 +40,7 @@ class LS_CNN(nn.Module):
 		# #将tensor的维度换位。
 		# x = x.permute(0,3,1,2)
 		# x = self.conv_embed(x)
-		x = self.embed_A(x)
+		x = self.embedding(x)
 		x = x.unsqueeze(1)  # [batch, 1, seq_len, embed_dim]
 
 		if self.args.static:
