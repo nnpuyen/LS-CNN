@@ -9,7 +9,7 @@ from torch.autograd import Variable
 
 
 class LS_CNN(nn.Module):
-	def __init__(self, args, static_emb):
+	def __init__(self, args, embedding_matrix):
 		super(LS_CNN, self).__init__()
 		self.args = args
 
@@ -22,8 +22,8 @@ class LS_CNN(nn.Module):
 
 		self.embed_A = nn.Embedding(V, D)
 		self.embed_B = nn.Embedding(V, D)
-
-		self.embed_B.weight.data.copy_(static_emb)
+		if embedding_matrix is not None:
+			self.embed_B.weight.data.copy_(embedding_matrix)
 		self.embed_B.weight.requires_grad = False
 
 		self.conv_embed = nn.Conv2d(2, 1, (1, 1))
