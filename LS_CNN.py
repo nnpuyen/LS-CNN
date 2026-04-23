@@ -9,7 +9,7 @@ from torch.autograd import Variable
 
 
 class LS_CNN(nn.Module):
-	def __init__(self, args):
+	def __init__(self, args, static_emb):
 		super(LS_CNN, self).__init__()
 		self.args = args
 
@@ -20,10 +20,11 @@ class LS_CNN(nn.Module):
 		Co = args.kernel_num
 		Ks = args.kernel_sizes
 
-		self.embedding = nn.Embedding(V, D)
-		#self.embed_B = nn.Embedding(V, D)
-		#self.embed_B.weight.data.copy_(text_field.vocab.vectors)
-		#self.embed_B.weight.requires_grad = False
+		self.embed_A = nn.Embedding(V, D)
+		self.embed_B = nn.Embedding(V, D)
+
+		self.embed_B.weight.data.copy_(static_emb)
+		self.embed_B.weight.requires_grad = False
 
 		self.conv_embed = nn.Conv2d(2, 1, (1, 1))
 		self.convs1 = nn.ModuleList([nn.Conv2d(Ci, Co, (K, D)) for K in Ks])
@@ -33,15 +34,15 @@ class LS_CNN(nn.Module):
 	
 
 	def forward(self, x):
-		# x_A = self.embed_A(x) # [batch_size, sen_length, D]
-		# x_B = self.embed_B(x)
+		x_A = self.embed_A(x) # [batch_size, sen_length, D]
+		x_B = self.embed_B(x)
 		# #张量连接
-		# x = torch.cat([x_A.unsqueeze(3), x_B.unsqueeze(3)], 3)
+		x = torch.cat([x_A.unsqueeze(3), x_B.unsqueeze(3)], 3)
 		# #将tensor的维度换位。
-		# x = x.permute(0,3,1,2)
-		# x = self.conv_embed(x)
-		x = self.embedding(x)
-		x = x.unsqueeze(1)  # [batch, 1, seq_len, embed_dim]
+		x = x.permute(0,3,1,2)
+		x = self.conv_embed(x)
+		# x = self.embedding(x)
+		# x = x.unsqueeze(1)  # [batch, 1, seq_len, embed_dim]
 
 		if self.args.static:
 			x = Variable(x)

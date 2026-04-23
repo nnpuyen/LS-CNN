@@ -85,13 +85,13 @@ if __name__ == "__main__":
 	# data
 	parser.add_argument('-shuffle', action='store_true', default=False,\
 						help='shuffle the data every epoch [default:False]')
-	parser.add_argument('-train-cover-dir', type=str, default=r'Dataset\cover\train_IMDB',
+	parser.add_argument('-train-cover-dir', type=str, default=r'..\\dataset-10k\\filtered\\cover_train.txt',
 						help='the path of train cover data. [default:cover.txt]')
-	parser.add_argument('-train-stego-dir', type=str, default=r'Dataset\stego\train_stego_1bpw.txt',
+	parser.add_argument('-train-stego-dir', type=str, default=r'..\\dataset-10k\\filtered\\stego_train.txt',
 						help='the path of train stego data. [default:1bpw.txt]')
-	parser.add_argument('-test-cover-dir', type=str, default=r'Dataset\cover\test_IMDB',
+	parser.add_argument('-test-cover-dir', type=str, default=r'..\\dataset-10k\\filtered\\cover_test.txt',
 						help='the path of test cover data. [default:cover.txt]')
-	parser.add_argument('-test-stego-dir', type=str, default=r'Dataset\stego\test_stego_1bpw.txt',
+	parser.add_argument('-test-stego-dir', type=str, default=r'..\\dataset-10k\\filtered\\stego_test.txt',
 						help='the path of test stego data. [default:1bpw.txt]')
 	# model
 	parser.add_argument('-kernel-sizes', type=str, default='3,4,5', \
