@@ -1,10 +1,85 @@
 import os
 import sys
+import csv
+from datetime import datetime
 import numpy as np
 import torch
 import torch.autograd as autograd
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
+
+
+def _append_csv_row(file_path, headers, row):
+    file_exists = os.path.exists(file_path)
+    with open(file_path, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def _append_txt_line(file_path, text):
+    with open(file_path, 'a', encoding='utf-8', errors='ignore') as f:
+        f.write(text + '\n')
+
+
+def _log_training_step(args, epoch, step, loss, acc):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    csv_path = os.path.join(args.save_dir, 'training_process.csv')
+    txt_path = os.path.join(args.save_dir, 'training_process.txt')
+    headers = ['timestamp', 'epoch', 'step', 'loss', 'accuracy']
+
+    _append_csv_row(
+        csv_path,
+        headers,
+        {
+            'timestamp': now,
+            'epoch': epoch,
+            'step': step,
+            'loss': f'{loss:.6f}',
+            'accuracy': f'{acc:.6f}',
+        },
+    )
+    _append_txt_line(
+        txt_path,
+        f'[{now}] epoch={epoch} step={step} loss={loss:.6f} accuracy={acc:.6f}',
+    )
+
+
+def _log_evaluation(args, phase, loss, acc, precision='', recall='', f1='', tn='', tp='', fn='', fp='', dataset=''):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    csv_path = os.path.join(args.save_dir, 'evaluation_results.csv')
+    txt_path = os.path.join(args.save_dir, 'evaluation_results.txt')
+    headers = [
+        'timestamp', 'phase', 'dataset', 'loss', 'accuracy', 'precision', 'recall', 'f1',
+        'tn', 'tp', 'fn', 'fp'
+    ]
+
+    _append_csv_row(
+        csv_path,
+        headers,
+        {
+            'timestamp': now,
+            'phase': phase,
+            'dataset': dataset,
+            'loss': f'{loss:.6f}',
+            'accuracy': f'{acc:.6f}',
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+            'tn': tn,
+            'tp': tp,
+            'fn': fn,
+            'fp': fp,
+        },
+    )
+    _append_txt_line(
+        txt_path,
+        (
+            f'[{now}] phase={phase} dataset={dataset} loss={loss:.6f} accuracy={acc:.6f} '
+            f'precision={precision} recall={recall} f1={f1} tn={tn} tp={tp} fn={fn} fp={fp}'
+        ),
+    )
 
 def train(train_iter, dev_iter, model, args, device):
     optimizer = torch.optim.Adam(
@@ -14,6 +89,7 @@ def train(train_iter, dev_iter, model, args, device):
     )
 
     writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'LogFile'))
+    os.makedirs(args.save_dir, exist_ok=True)
 
     steps = 0
     best_acc = 0
@@ -48,12 +124,14 @@ def train(train_iter, dev_iter, model, args, device):
 
                 writer.add_scalar('loss/train', loss.item(), steps)
                 writer.add_scalar('acc/train', accuracy, steps)
+                _log_training_step(args, epoch, steps, loss.item(), accuracy)
 
             if steps % args.test_interval == 0:
                 dev_acc, dev_loss = data_eval(dev_iter, model, args, device)
 
                 writer.add_scalar('loss/dev', dev_loss, steps)
                 writer.add_scalar('acc/dev', dev_acc, steps)
+                _log_evaluation(args, phase='validation', loss=dev_loss, acc=dev_acc)
 
                 if dev_acc > best_acc:
                     best_acc = dev_acc
@@ -193,6 +271,22 @@ def data_eval(data_iter, model, args, device):
         FP = ((predictions == 1) & (labels == 0)).sum()
 
         print(f'\nTesting - loss:{avg_loss:.6f} acc:{acc:.4f} ({total_correct}/{total_samples})')
+
+        dataset_name = getattr(args, 'test_dataset_name', '')
+        _log_evaluation(
+            args,
+            phase='test',
+            loss=avg_loss,
+            acc=acc,
+            precision=f'{precision:.6f}',
+            recall=f'{recall:.6f}',
+            f1=f'{f1:.6f}',
+            tn=int(TN),
+            tp=int(TP),
+            fn=int(FN),
+            fp=int(FP),
+            dataset=dataset_name,
+        )
 
         result_file = os.path.join(args.save_dir, 'result.txt')
         with open(result_file, 'a', errors='ignore') as f:

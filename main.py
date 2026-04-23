@@ -44,14 +44,14 @@ if __name__ == "__main__":
 	print("Downloading GloVe embeddings...")
 	response = requests.get(url, stream=True)
 	with open(zip_path, "wb") as f:
-	    for chunk in response.iter_content(chunk_size=8192):
-	        if chunk:
-	            f.write(chunk)
+		for chunk in response.iter_content(chunk_size=8192):
+			if chunk:
+				f.write(chunk)
 	print("Download completed.")
 
 	# Giải nén glove.6B.300d.txt
 	with zipfile.ZipFile(zip_path, "r") as zip_ref:
-	    zip_ref.extract("glove.6B.300d.txt", folder)
+		zip_ref.extract("glove.6B.300d.txt", folder)
 	print("Extracted glove.6B.300d.txt.")
 
 	# Xóa file zip nếu muốn
@@ -190,12 +190,12 @@ if __name__ == "__main__":
 		# torch.save(embedding_matrix, "glove_weight\glove.6B.300d.txt.pt")
 		# cache embedding
 		if os.path.exists("glove_weight/glove.6B.300d.txt.pt"):
-		    embedding_matrix = torch.load("glove_weight/glove.6B.300d.txt.pt")
+			embedding_matrix = torch.load("glove_weight/glove.6B.300d.txt.pt")
 		else:
-		    embedding_matrix = torch.tensor(load_glove(vocab, glove_path),dtype=torch.float)
+			embedding_matrix = torch.tensor(load_glove(vocab, glove_path),dtype=torch.float)
 			#torch.save(embedding_matrix, "glove_weight\glove.6B.300d.txt.pt")
-		    # embedding_matrix = load_glove(vocab, glove_path)
-		    torch.save(embedding_matrix, "glove_weight/glove.6B.300d.txt.pt")
+			# embedding_matrix = load_glove(vocab, glove_path)
+			torch.save(embedding_matrix, "glove_weight/glove.6B.300d.txt.pt")
 			
 
 		def collate(batch):
@@ -220,19 +220,61 @@ if __name__ == "__main__":
 		
 		return train_loader, valid_loader, vocab, embedding_matrix
 
+	def infer_dataset_name(cover_path, stego_path):
+		def normalize_name(path):
+			normalized = os.path.normpath(path)
+			if os.path.isdir(normalized):
+				return os.path.basename(normalized)
+			return os.path.splitext(os.path.basename(normalized))[0]
+
+		cover_name = normalize_name(cover_path)
+		stego_name = normalize_name(stego_path)
+
+		if cover_name == stego_name:
+			return cover_name
+		return f"{cover_name} + {stego_name}"
+
+	def print_result_table(title, metrics_dict):
+		print(f"\n{title}")
+		print("+-----------+----------+")
+		print("| Metric    | Value    |")
+		print("+-----------+----------+")
+		for key, value in metrics_dict.items():
+			if isinstance(value, (int, float)):
+				formatted_value = f"{value:>8.4f}"
+			else:
+				formatted_value = f"{str(value):>8}"
+			print(f"| {key:<9} | {formatted_value} |")
+		print("+-----------+----------+")
+
+	def eval_and_report(model, test_loader, args, device, title, dataset_name):
+		previous_test_flag = args.test
+		args.test = True
+		acc, precision, recall, f1 = train.data_eval(test_loader, model, args, device)
+		args.test = previous_test_flag
+
+		print(f"Dataset: {dataset_name}")
+		metrics_dict = {
+			"Accuracy": acc,
+			"Precision": precision,
+			"Recall": recall,
+			"F1": f1,
+		}
+		print_result_table(title, metrics_dict)
+
 	# Load data
 	train_loader, valid_loader, vocab, embedding_matrix = data_loader(args)
 
-	# Test
-	test_loader = None
-	if args.test:
-		test_data = MyData.split(args, state='test')
-		test_loader = DataLoader(
-			test_data,
-			batch_size=64,
-			shuffle=False,
-			collate_fn=lambda b: collate_fn(b, vocab)
-		)
+	# Test data (always create so we can evaluate right after training)
+	test_dataset_name = infer_dataset_name(args.test_cover_dir, args.test_stego_dir)
+	args.test_dataset_name = test_dataset_name
+	test_data = MyData.split(args, state='test')
+	test_loader = DataLoader(
+		test_data,
+		batch_size=64,
+		shuffle=False,
+		collate_fn=lambda b: collate_fn(b, vocab)
+	)
 
 	# Update args
 	args.embed_num = len(vocab)
@@ -280,17 +322,26 @@ if __name__ == "__main__":
 	# 🔹 Training phase
 	if not args.test:
 		train.train(train_loader, valid_loader, model, args, device)
+		eval_and_report(model, test_loader, args, device, 'Final model test result', test_dataset_name)
 
 	# 🔹 Testing phase
 	else:
 		print('\n----------testing------------')
 		print(f'Loading test model from {args.save_dir}...')
 
+		if not os.path.exists(args.save_dir):
+			print(f'Cannot find save directory: {args.save_dir}')
+			sys.exit(1)
+
 		models = []
 		files = sorted(os.listdir(args.save_dir))
 		for name in files:
 			if name.endswith('.pt'):
 				models.append(name)
+
+		if not models:
+			print(f'No checkpoint found in {args.save_dir}')
+			sys.exit(1)
 
 		model_steps = sorted([
 			int(m.split('_')[-1].split('.')[0]) for m in models
@@ -302,6 +353,5 @@ if __name__ == "__main__":
 
 			print(f'the {m_path} model is loaded...')
 			model.load_state_dict(torch.load(m_path, map_location=device))
-			print('hihi')
-			train.data_eval(test_loader, model, args, device)
+			eval_and_report(model, test_loader, args, device, f'Test result for {best_model}', test_dataset_name)
 
