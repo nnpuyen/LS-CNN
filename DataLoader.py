@@ -62,10 +62,16 @@ class MyData(Dataset):
             if shuffle:
                 random.shuffle(examples)
 
-            val_idx = -2000
-            train_data = cls(examples=examples[:val_idx])
-            val_data = cls(examples=examples[val_idx:])
+            # Lấy tỉ lệ validation từ args, mặc định 0.1
+            val_ratio = getattr(args, 'valid_ratio', 0.1)
+            n_total = len(examples)
+            n_val = int(n_total * val_ratio)
+            if n_val < 1:
+                n_val = 1
+            train_data = cls(examples=examples[:-n_val])
+            val_data = cls(examples=examples[-n_val:])
 
+            print(f"Tổng mẫu: {n_total}, train: {len(train_data)}, valid: {len(val_data)}, tỉ lệ valid: {val_ratio}")
             return train_data, val_data
 
         elif state == 'test':

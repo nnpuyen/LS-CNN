@@ -91,8 +91,6 @@ class CollateWithVocab:
 
 def data_loader(args, batch_size=32, shuffle=True, glove_path=r"glove_weight/glove.6B.300d.txt"):
     train_data, valid_data = MyData.split(args, state='train')
-    print(f"Batch size in args: {args.batch_size}")
-    print(f"Batch size in function: {batch_size}")
     vocab = build_vocab(train_data)
     
     if os.path.exists("glove_weight/glove.6B.300d.txt.pt"):
@@ -149,6 +147,7 @@ def print_result_table(title, metrics_dict):
     print("+-----------+----------+")
 
 def eval_and_report(model, test_loader, args, device, title, dataset_name):
+    import pandas as pd
     previous_test_flag = args.test
     args.test = True
     acc, _, precision, recall, f1, P_FA, P_MD, P_E = train.data_eval(test_loader, model, args, device)
@@ -156,6 +155,7 @@ def eval_and_report(model, test_loader, args, device, title, dataset_name):
 
     print(f"Dataset: {dataset_name}")
     metrics_dict = {
+        "Dataset": dataset_name,
         "Accuracy": acc,
         "Precision": precision,
         "Recall": recall,
@@ -165,6 +165,23 @@ def eval_and_report(model, test_loader, args, device, title, dataset_name):
         "P_E": P_E,
     }
     print_result_table(title, metrics_dict)
+
+    # Lưu kết quả vào evaluation_result/[tên_checkpoint]_evaluation.csv
+    eval_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'evaluation_result'))
+    os.makedirs(eval_dir, exist_ok=True)
+    # Lấy tên checkpoint từ title (nếu có chuỗi 'for ...' thì lấy phần sau 'for ')
+    import re
+    ckpt_name = None
+    m = re.search(r'Test result for (.+)', title)
+    if m:
+        ckpt_name = m.group(1)
+    else:
+        ckpt_name = title.replace(' ', '_')
+    ckpt_name = os.path.splitext(os.path.basename(ckpt_name))[0]
+    out_path = os.path.join(eval_dir, f'{ckpt_name}_evaluation.csv')
+    df = pd.DataFrame([metrics_dict])
+    df.to_csv(out_path, index=False)
+    print(f"Saved evaluation result to {out_path}")
 
 
 if __name__ == "__main__":
@@ -200,68 +217,60 @@ if __name__ == "__main__":
     else:
         print("GloVe embeddings already exist. Skipping download.")
 
+
     parser = argparse.ArgumentParser(description='LS_CNN')
 
     # learning
-    parser.add_argument('-batch-size', type=int, default=64, \
-                        help='batch size for training [default: 64]')
-    parser.add_argument('-lr', type=float, default=0.001,\
-                        help='initial learning rate [default:0.001]')
-    parser.add_argument('-epochs', type=int, default=20,\
-                        help='number of epochs for train [default:20]')
-    parser.add_argument('-log-interval', type=int, default=20, \
-                        help='how many steps to wait defore logging train status')
-    parser.add_argument('-test-interval', type=int, default=100, \
-                        help='how many steps to wait defore testing [default:100]')
-    parser.add_argument('-save-interval', type=int, default=500, \
-                        help='how many steps to wait before saving [default:500]')
-    parser.add_argument('-early-stop', type=int, default=1000, \
-                        help='iteration numbers to stop without performace boost')
-    parser.add_argument('-save-best', type=bool, default=True,\
-                        help='whether to save when get best performance')
-    parser.add_argument('-save-dir', type=str, default='snapshot',
-                        help='where to save the snapshot')
-    parser.add_argument('-load_dir', type=str, default=None,
-                        help='where to loading the trained model')
+    parser.add_argument('-batch-size', type=int, default=64, help='batch size for training [default: 64]')
+    parser.add_argument('-lr', type=float, default=0.001, help='initial learning rate [default:0.001]')
+    parser.add_argument('-epochs', type=int, default=20, help='number of epochs for train [default:20]')
+    parser.add_argument('-log-interval', type=int, default=20, help='how many steps to wait defore logging train status')
+    parser.add_argument('-test-interval', type=int, default=100, help='how many steps to wait defore testing [default:100]')
+    parser.add_argument('-save-interval', type=int, default=500, help='how many steps to wait before saving [default:500]')
+    parser.add_argument('-early-stop', type=int, default=1000, help='iteration numbers to stop without performace boost')
+    parser.add_argument('-save-best', type=bool, default=True, help='whether to save when get best performance')
+    parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the snapshot')
+    parser.add_argument('-load_dir', type=str, default=None, help='where to loading the trained model')
 
     # data
-    parser.add_argument('-shuffle', action='store_true', default=True,\
-                        help='shuffle the data every epoch [default:True]')
-    parser.add_argument('-train-cover-dir', type=str, default=r'..\\dataset-10k\\filtered\\cover_train.txt',
-                        help='the path of train cover data. [default:cover.txt]')
-    parser.add_argument('-train-stego-dir', type=str, default=r'..\\dataset-10k\\filtered\\stego_train.txt',
-                        help='the path of train stego data. [default:1bpw.txt]')
-    parser.add_argument('-test-cover-dir', type=str, default=r'..\\dataset-10k\\filtered\\cover_test.txt',
-                        help='the path of test cover data. [default:cover.txt]')
-    parser.add_argument('-test-stego-dir', type=str, default=r'..\\dataset-10k\\filtered\\stego_test.txt',
-                        help='the path of test stego data. [default:1bpw.txt]')
+    parser.add_argument('-shuffle', action='store_true', default=True, help='shuffle the data every epoch [default:True]')
+    parser.add_argument('-train-cover-dir', type=str, default=r'..\\Twitter\\cover_train.txt', help='the path of train cover data. [default:cover.txt]')
+    parser.add_argument('-train-stego-dir', type=str, default=r'..\\Twitter\\stego_train.txt', help='the path of train stego data. [default:1bpw.txt]')
+    parser.add_argument('-test-cover-dir', type=str, default=r'..\\Twitter\\cover_test.txt', help='the path of test cover data. [default:cover.txt]')
+    parser.add_argument('-test-stego-dir', type=str, default=r'..\\Twitter\\stego_test.txt', help='the path of test stego data. [default:1bpw.txt]')
+    parser.add_argument('-valid-ratio', type=float, default=0.1, help='validation set ratio (0-1), default=0.1')
+
     # model
-    parser.add_argument('-kernel-sizes', type=str, default='3,4,5', \
-                        help='vomma-speparated kernel size to use for convolution')
-    parser.add_argument('-embed-dim', type=int, default=300, \
-                        help='number of embedding dimension [defualt:300]')
-    parser.add_argument('-kernel-num', type=int, default=100, \
-                        help='number of each kind of kernel [defualt:100]')
-    parser.add_argument('-dropout', type=float, default=0.5, \
-                        help='the probability for dropout [defualt:0.5]')
-    parser.add_argument('-static', action='store_true', default=False, \
-                        help='fix the embedding [default:False]')
+    parser.add_argument('-kernel-sizes', type=str, default='3,4,5', help='vomma-speparated kernel size to use for convolution')
+    parser.add_argument('-embed-dim', type=int, default=300, help='number of embedding dimension [defualt:300]')
+    parser.add_argument('-kernel-num', type=int, default=100, help='number of each kind of kernel [defualt:100]')
+    parser.add_argument('-dropout', type=float, default=0.5, help='the probability for dropout [defualt:0.5]')
+    parser.add_argument('-static', action='store_true', default=False, help='fix the embedding [default:False]')
 
     #device
-    parser.add_argument('-no-cuda', action='store_true', default=False, \
-                        help='disable the gpu [default:True]')
-    parser.add_argument('-device', type=str, default='cuda', \
-                        help='device to use for trianing [default:gpu]')
-    parser.add_argument('-idx-gpu', type=str, default='0',\
-                        help='the number of gpu for training [default:0]')
+    parser.add_argument('-no-cuda', action='store_true', default=False, help='disable the gpu [default:True]')
+    parser.add_argument('-device', type=str, default='cuda', help='device to use for trianing [default:gpu]')
+    parser.add_argument('-idx-gpu', type=str, default='0', help='the number of gpu for training [default:0]')
 
     # option
-    parser.add_argument('-test', type=bool, default=False, \
-                        help='train or test [default:False]')                              
+    parser.add_argument('-test', type=bool, default=False, help='train or test [default:False]')
 
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.idx_gpu
+
+
+    # Log và lưu cấu hình train
+    def log_and_save_config(args, config_path="train_config.txt"):
+        config_dict = vars(args)
+        config_str = "\n".join([f"{k}: {v}" for k, v in config_dict.items()])
+        print("\n===== Training Configuration =====")
+        print(config_str)
+        print("==================================\n")
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(config_str)
+
+    log_and_save_config(args)
 
     # Load data
     train_loader, valid_loader, vocab, embedding_matrix = data_loader(args)
