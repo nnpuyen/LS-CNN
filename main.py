@@ -324,30 +324,38 @@ if __name__ == "__main__":
     # 🔹 Testing phase
     else:
         print('\n----------testing------------')
-        print(f'Loading test model from {args.save_dir}...')
+        # Nếu truyền --load_dir thì chỉ test đúng checkpoint đó
+        if args.load_dir is not None:
+            print(f'Loading test model from {args.load_dir}...')
+            if not os.path.exists(args.load_dir):
+                print(f'Cannot find checkpoint: {args.load_dir}')
+                sys.exit(1)
+            model.load_state_dict(torch.load(args.load_dir, map_location=device))
+            eval_and_report(model, test_loader, args, device, f'Test result for {os.path.basename(args.load_dir)}', test_dataset_name)
+        else:
+            print(f'Loading test model from {args.save_dir}...')
+            if not os.path.exists(args.save_dir):
+                print(f'Cannot find save directory: {args.save_dir}')
+                sys.exit(1)
 
-        if not os.path.exists(args.save_dir):
-            print(f'Cannot find save directory: {args.save_dir}')
-            sys.exit(1)
+            models = []
+            files = sorted(os.listdir(args.save_dir))
+            for name in files:
+                if name.endswith('.pt'):
+                    models.append(name)
 
-        models = []
-        files = sorted(os.listdir(args.save_dir))
-        for name in files:
-            if name.endswith('.pt'):
-                models.append(name)
+            if not models:
+                print(f'No checkpoint found in {args.save_dir}')
+                sys.exit(1)
 
-        if not models:
-            print(f'No checkpoint found in {args.save_dir}')
-            sys.exit(1)
+            model_steps = sorted([
+                int(m.split('_')[-1].split('.')[0]) for m in models
+            ])
 
-        model_steps = sorted([
-            int(m.split('_')[-1].split('.')[0]) for m in models
-        ])
+            for step in model_steps[-3:]:
+                best_model = f'best_steps_{step}.pt'
+                m_path = os.path.join(args.save_dir, best_model)
 
-        for step in model_steps[-3:]:
-            best_model = f'best_steps_{step}.pt'
-            m_path = os.path.join(args.save_dir, best_model)
-
-            print(f'the {m_path} model is loaded...')
-            model.load_state_dict(torch.load(m_path, map_location=device))
-            eval_and_report(model, test_loader, args, device, f'Test result for {best_model}', test_dataset_name)
+                print(f'the {m_path} model is loaded...')
+                model.load_state_dict(torch.load(m_path, map_location=device))
+                eval_and_report(model, test_loader, args, device, f'Test result for {best_model}', test_dataset_name)
