@@ -112,7 +112,7 @@ def data_loader(args, batch_size=32, shuffle=True, glove_path=r"glove_weight/glo
 
     valid_loader = DataLoader(
         valid_data,
-        batch_size=len(valid_data),
+        batch_size=args.batch_size,
         shuffle=False,
         collate_fn=collate
     )
