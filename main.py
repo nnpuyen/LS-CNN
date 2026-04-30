@@ -96,7 +96,9 @@ def data_loader(args, batch_size=32, shuffle=True, glove_path=r"glove_weight/glo
     if os.path.exists("glove_weight/glove.6B.300d.txt.pt"):
         embedding_matrix = torch.load("glove_weight/glove.6B.300d.txt.pt")
     else:
-        embedding_matrix = torch.tensor(load_glove(vocab, glove_path),dtype=torch.float)
+        # load_glove already returns a torch.Tensor of dtype float,
+        # so avoid copying a tensor into a new tensor which raises a warning.
+        embedding_matrix = load_glove(vocab, glove_path)
         torch.save(embedding_matrix, "glove_weight/glove.6B.300d.txt.pt")
         
     collate = CollateWithVocab(vocab)
@@ -218,6 +220,7 @@ if __name__ == "__main__":
         print("GloVe embeddings already exist. Skipping download.")
 
 
+
     parser = argparse.ArgumentParser(description='LS_CNN')
 
     # learning
@@ -252,8 +255,12 @@ if __name__ == "__main__":
     parser.add_argument('-device', type=str, default='cuda', help='device to use for trianing [default:gpu]')
     parser.add_argument('-idx-gpu', type=str, default='0', help='the number of gpu for training [default:0]')
 
+
     # option
     parser.add_argument('-test', type=bool, default=False, help='train or test [default:False]')
+
+    # vocab path
+    parser.add_argument('-vocab-path', type=str, default=None, help='path to vocab.pkl file (for cross-domain or custom vocab)')
 
     args = parser.parse_args()
 
@@ -272,8 +279,46 @@ if __name__ == "__main__":
 
     log_and_save_config(args)
 
-    # Load data
-    train_loader, valid_loader, vocab, embedding_matrix = data_loader(args)
+
+    # Load or build vocab
+    import pickle
+    if args.vocab_path is not None and os.path.exists(args.vocab_path):
+        print(f"Loading vocab from {args.vocab_path}")
+        with open(args.vocab_path, 'rb') as f:
+            vocab = pickle.load(f)
+        # Build data loaders using loaded vocab
+        train_data, valid_data = MyData.split(args, state='train')
+        collate = CollateWithVocab(vocab)
+        train_loader = DataLoader(
+            train_data,
+            batch_size=args.batch_size,
+            shuffle=args.shuffle,
+            collate_fn=collate,
+            num_workers=2,
+            pin_memory=True
+        )
+        valid_loader = DataLoader(
+            valid_data,
+            batch_size=args.batch_size,
+            shuffle=False,
+            collate_fn=collate
+        )
+        # Load embedding matrix
+        glove_path = os.path.join('glove_weight', 'glove.6B.300d.txt')
+        if os.path.exists("glove_weight/glove.6B.300d.txt.pt"):
+            embedding_matrix = torch.load("glove_weight/glove.6B.300d.txt.pt")
+        else:
+            embedding_matrix = load_glove(vocab, glove_path)
+            torch.save(embedding_matrix, "glove_weight/glove.6B.300d.txt.pt")
+    else:
+        train_loader, valid_loader, vocab, embedding_matrix = data_loader(args)
+        # Lưu vocab ra file riêng để dùng lại cho cross-domain
+        vocab_path = os.path.join(args.save_dir, 'vocab.pkl')
+        os.makedirs(args.save_dir, exist_ok=True)
+        with open(vocab_path, 'wb') as f:
+            pickle.dump(vocab, f)
+        print(f"Vocab saved to {vocab_path}")
+    args.vocab = vocab
     print(f"Số batch trong train_iter: {len(train_loader)}")
     print(f"Số batch trong dev_iter: {len(valid_loader)}")
 

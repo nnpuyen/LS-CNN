@@ -44,8 +44,6 @@ class LS_CNN(nn.Module):
 		# x = self.embedding(x)
 		# x = x.unsqueeze(1)  # [batch, 1, seq_len, embed_dim]
 
-		if self.args.static:
-			x = Variable(x)
 
 		x = [F.relu(conv(x)).squeeze(3) for conv in self.convs1]
 		x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]

@@ -139,7 +139,12 @@ def train(train_iter, dev_iter, model, args, device):
                     best_acc = dev_acc
                     last_step = steps
                     if args.save_best:
-                        save(model, args.save_dir, 'best', steps)
+                        # Lưu cả model, vocab, args
+                        if hasattr(args, 'vocab'):
+                            vocab_to_save = args.vocab
+                        else:
+                            vocab_to_save = None
+                        save_all(model, args.save_dir, 'best', steps, vocab=vocab_to_save, args=args)
 
                 if steps - last_step >= args.early_stop:
                     print('early stop')
@@ -243,10 +248,21 @@ def data_eval(data_iter, model, args, device):
 
     return acc, avg_loss, precision, recall, f1, P_FA, P_MD, P_E
 
-def save(model, save_dir, save_prefix, steps):
-	if not os.path.isdir(save_dir):
-		os.makedirs(save_dir)
-	save_prefix = os.path.join(save_dir, save_prefix)
-	save_path = '{}_steps_{}.pt'.format(save_prefix, steps)
-	torch.save(model.state_dict(), save_path)
+
+# Hàm mới: lưu model, vocab, args
+import pickle
+def save_all(model, save_dir, save_prefix, steps, vocab=None, args=None):
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    save_prefix = os.path.join(save_dir, save_prefix)
+    save_path = '{}_steps_{}.pt'.format(save_prefix, steps)
+    torch.save(model.state_dict(), save_path)
+    # Lưu vocab nếu có
+    if vocab is not None:
+        with open(os.path.join(save_dir, f'vocab_steps_{steps}.pkl'), 'wb') as f:
+            pickle.dump(vocab, f)
+    # Lưu args nếu có
+    if args is not None:
+        with open(os.path.join(save_dir, f'args_steps_{steps}.pkl'), 'wb') as f:
+            pickle.dump(vars(args), f)
 
