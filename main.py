@@ -282,10 +282,17 @@ if __name__ == "__main__":
 
     # Load or build vocab
     import pickle
+    import hashlib
+    def hash_vocab(vocab):
+        # Hash vocab for unique embedding file name
+        vocab_bytes = str(sorted(vocab.items())).encode('utf-8')
+        return hashlib.md5(vocab_bytes).hexdigest()
+
     if args.vocab_path is not None and os.path.exists(args.vocab_path):
         print(f"Loading vocab from {args.vocab_path}")
         with open(args.vocab_path, 'rb') as f:
             vocab = pickle.load(f)
+        vocab_hash = hash_vocab(vocab)
         # Build data loaders using loaded vocab
         train_data, valid_data = MyData.split(args, state='train')
         collate = CollateWithVocab(vocab)
@@ -303,21 +310,29 @@ if __name__ == "__main__":
             shuffle=False,
             collate_fn=collate
         )
-        # Load embedding matrix
+        # Load embedding matrix with hash
         glove_path = os.path.join('glove_weight', 'glove.6B.300d.txt')
-        if os.path.exists("glove_weight/glove.6B.300d.txt.pt"):
-            embedding_matrix = torch.load("glove_weight/glove.6B.300d.txt.pt")
+        emb_file = f"glove_weight/glove.6B.300d.txt.{vocab_hash}.pt"
+        if os.path.exists(emb_file):
+            embedding_matrix = torch.load(emb_file)
+            print(f"Loaded embedding matrix from {emb_file}")
         else:
             embedding_matrix = load_glove(vocab, glove_path)
-            torch.save(embedding_matrix, "glove_weight/glove.6B.300d.txt.pt")
+            torch.save(embedding_matrix, emb_file)
+            print(f"Saved embedding matrix to {emb_file}")
     else:
         train_loader, valid_loader, vocab, embedding_matrix = data_loader(args)
+        vocab_hash = hash_vocab(vocab)
         # Lưu vocab ra file riêng để dùng lại cho cross-domain
         vocab_path = os.path.join(args.save_dir, 'vocab.pkl')
         os.makedirs(args.save_dir, exist_ok=True)
         with open(vocab_path, 'wb') as f:
             pickle.dump(vocab, f)
         print(f"Vocab saved to {vocab_path}")
+        # Save embedding matrix with hash
+        emb_file = f"glove_weight/glove.6B.300d.txt.{vocab_hash}.pt"
+        torch.save(embedding_matrix, emb_file)
+        print(f"Saved embedding matrix to {emb_file}")
     args.vocab = vocab
     print(f"Số batch trong train_iter: {len(train_loader)}")
     print(f"Số batch trong dev_iter: {len(valid_loader)}")

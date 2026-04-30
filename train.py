@@ -191,9 +191,9 @@ def data_eval(data_iter, model, args, device):
     labels = torch.cat(all_labels).numpy()
 
     acc = metrics.accuracy_score(labels, predictions)
-    precision = metrics.precision_score(labels, predictions, average='weighted', zero_division=0)
-    recall = metrics.recall_score(labels, predictions, average='weighted', zero_division=0)
-    f1 = metrics.f1_score(labels, predictions, average='weighted')
+    precision = metrics.precision_score(labels, predictions, pos_label=1, zero_division=0)
+    recall = metrics.recall_score(labels, predictions, pos_label=1, zero_division=0)
+    f1 = metrics.f1_score(labels, predictions, pos_label=1, zero_division=0)
 
     TN = ((predictions == 0) & (labels == 0)).sum()
     TP = ((predictions == 1) & (labels == 1)).sum()
